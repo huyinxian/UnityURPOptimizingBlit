@@ -365,8 +365,20 @@ namespace UnityEngine.Rendering.Universal
             }
             else
             {
-                m_ActiveCameraColorAttachment = m_CameraColorAttachment;
-                m_ActiveCameraDepthAttachment = m_CameraDepthAttachment;
+                /* Blit optimization start */
+                if (Display.main.requiresSrgbBlitToBackbuffer)
+                {
+                    // If back buffer dose not support sRGB write, use FinalBlitPass.
+                    m_ActiveCameraColorAttachment = m_CameraColorAttachment;
+                    m_ActiveCameraDepthAttachment = m_CameraDepthAttachment;
+                }
+                else
+                {
+                    // If back buffer support sRGB write, write UI to back buffer.
+                    m_ActiveCameraColorAttachment = RenderTargetHandle.CameraTarget;
+                    m_ActiveCameraDepthAttachment = RenderTargetHandle.CameraTarget;
+                }
+                /* Blit optimization end */
             }
 
             // Assign camera targets (color and depth)
@@ -520,8 +532,15 @@ namespace UnityEngine.Rendering.Universal
                 // We need final blit to resolve to screen
                 if (!cameraTargetResolved)
                 {
-                    m_FinalBlitPass.Setup(cameraTargetDescriptor, sourceForFinalPass);
-                    EnqueuePass(m_FinalBlitPass);
+                    /* Blit optimization start */
+                    // If back buffer dose not support sRGB write, use FinalBlitPass.
+                    // If there is support, we dont need FinalBlitPass.
+                    if (Display.main.requiresSrgbBlitToBackbuffer)
+                    {
+                        m_FinalBlitPass.Setup(cameraTargetDescriptor, sourceForFinalPass);
+                        EnqueuePass(m_FinalBlitPass);
+                    }
+                    /* Blit optimization end */
                 }
 
 #if ENABLE_VR && ENABLE_XR_MODULE
@@ -540,7 +559,19 @@ namespace UnityEngine.Rendering.Universal
             // stay in RT so we resume rendering on stack after post-processing
             else if (applyPostProcessing)
             {
-                m_PostProcessPass.Setup(cameraTargetDescriptor, m_ActiveCameraColorAttachment, m_AfterPostProcessColor, m_ActiveCameraDepthAttachment, m_ColorGradingLut, false, false);
+                /* Blit optimization start */
+                if (Display.main.requiresSrgbBlitToBackbuffer)
+                {
+                    m_PostProcessPass.Setup(cameraTargetDescriptor, m_ActiveCameraColorAttachment,
+                        m_AfterPostProcessColor, m_ActiveCameraDepthAttachment, m_ColorGradingLut, false, false);
+                }
+                else
+                {
+                    // Write result to back buffer.
+                    m_PostProcessPass.Setup(cameraTargetDescriptor, m_ActiveCameraColorAttachment,
+                        RenderTargetHandle.CameraTarget, m_ActiveCameraDepthAttachment, m_ColorGradingLut, false, false);
+                }
+                /* Blit optimization end */
                 EnqueuePass(m_PostProcessPass);
             }
 
