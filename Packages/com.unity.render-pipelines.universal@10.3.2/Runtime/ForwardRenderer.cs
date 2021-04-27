@@ -501,7 +501,14 @@ namespace UnityEngine.Rendering.Universal
                     m_PostProcessPass.Setup(cameraTargetDescriptor, m_ActiveCameraColorAttachment, destination, m_ActiveCameraDepthAttachment, m_ColorGradingLut, applyFinalPostProcessing, doSRGBConvertion);
                     EnqueuePass(m_PostProcessPass);
                 }
-
+                
+                /* Blit optimization start */
+                else if (!applyPostProcessing && cameraData.renderType == CameraRenderType.Base && !cameraData.isPreviewCamera)
+                {
+                    m_FinalBlitPass.Setup(cameraTargetDescriptor, m_ActiveCameraColorAttachment);
+                    EnqueuePass(m_FinalBlitPass);
+                }
+                /* Blit optimization end */
 
                 // if we applied post-processing for this camera it means current active texture is m_AfterPostProcessColor
                 var sourceForFinalPass = (applyPostProcessing) ? m_AfterPostProcessColor : m_ActiveCameraColorAttachment;
@@ -574,6 +581,14 @@ namespace UnityEngine.Rendering.Universal
                 /* Blit optimization end */
                 EnqueuePass(m_PostProcessPass);
             }
+            
+            /* Blit optimization start */
+            else if (!applyPostProcessing)
+            {
+                m_FinalBlitPass.Setup(cameraTargetDescriptor, m_ActiveCameraColorAttachment);
+                EnqueuePass(m_FinalBlitPass);
+            }
+            /* Blit optimization end */
 
 #if UNITY_EDITOR
             if (isSceneViewCamera)
